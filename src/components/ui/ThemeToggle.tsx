@@ -1,11 +1,15 @@
+"use client";
+
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useSyncExternalStore } from "react";
+
+const subscribe = () => () => {};
 
 const ThemeToggle = () => {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(subscribe, () => true, () => false);
+
   if (!mounted) return <div className="w-9 h-9" />;
   return (
     <button

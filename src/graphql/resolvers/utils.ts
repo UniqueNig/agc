@@ -5,6 +5,7 @@ import type {
 } from "@/src/models/Contestant";
 import type { PaymentStatus } from "@/src/models/Payment";
 import type { VoteStatus } from "@/src/models/Vote";
+import type { getAdminSession } from "@/src/lib/admin-auth";
 
 const contestantStatuses = new Set<ContestantStatus>([
   "active",
@@ -13,6 +14,10 @@ const contestantStatuses = new Set<ContestantStatus>([
 ]);
 const paymentStatuses = new Set<PaymentStatus>(["pending", "success", "failed"]);
 const voteStatuses = new Set<VoteStatus>(["pending", "success", "failed"]);
+
+export type GraphQLContext = {
+  adminSession: Awaited<ReturnType<typeof getAdminSession>>;
+};
 
 export const toObjectId = (value: string, fieldName = "id") => {
   if (!isValidObjectId(value)) {
@@ -58,4 +63,16 @@ export const normalizeVoteStatus = (status?: string | null) => {
 export const serializeDate = (value: Date | string | null | undefined) => {
   if (!value) return null;
   return new Date(value).toISOString();
+};
+
+export const requireAdmin = (context: GraphQLContext) => {
+  if (!context.adminSession) {
+    throw new GraphQLError("Unauthorized.", {
+      extensions: {
+        code: "UNAUTHORIZED",
+      },
+    });
+  }
+
+  return context.adminSession;
 };

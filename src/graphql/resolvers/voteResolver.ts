@@ -3,7 +3,13 @@ import { initializePayment } from "@/src/lib/paystack";
 import contestantModel from "@/src/models/Contestant";
 import paymentModel from "@/src/models/Payment";
 import voteModel from "@/src/models/Vote";
-import { normalizeVoteStatus, serializeDate, toObjectId } from "./utils";
+import {
+  normalizeVoteStatus,
+  requireAdmin,
+  serializeDate,
+  toObjectId,
+  type GraphQLContext,
+} from "./utils";
 
 type VotesArgs = {
   contestantId?: string | null;
@@ -24,7 +30,12 @@ type CreateVotePaymentArgs = {
 
 const voteResolver = {
   Query: {
-    votes: async (_: unknown, { contestantId, status }: VotesArgs) => {
+    votes: async (
+      _: unknown,
+      { contestantId, status }: VotesArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       const filter: Record<string, unknown> = {};
       const normalizedStatus = normalizeVoteStatus(status);
 
@@ -39,8 +50,10 @@ const voteResolver = {
       return voteModel.find(filter).sort({ createdAt: -1 });
     },
 
-    vote: async (_: unknown, { id }: VoteArgs) =>
-      voteModel.findById(toObjectId(id)),
+    vote: async (_: unknown, { id }: VoteArgs, context: GraphQLContext) => {
+      requireAdmin(context);
+      return voteModel.findById(toObjectId(id));
+    },
   },
 
   Mutation: {

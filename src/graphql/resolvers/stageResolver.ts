@@ -1,7 +1,12 @@
 import { GraphQLError } from "graphql";
 import stageModel, { type StageDocument } from "@/src/models/Stage";
 import contestantModel from "@/src/models/Contestant";
-import { serializeDate, toObjectId } from "./utils";
+import {
+  requireAdmin,
+  serializeDate,
+  toObjectId,
+  type GraphQLContext,
+} from "./utils";
 
 type StageArgs = {
   id: string;
@@ -33,7 +38,12 @@ const stageResolver = {
   },
 
   Mutation: {
-    createStage: async (_: unknown, { input }: CreateStageArgs) => {
+    createStage: async (
+      _: unknown,
+      { input }: CreateStageArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       if (input.isActive) {
         await stageModel.updateMany({}, { isActive: false });
       }
@@ -44,7 +54,12 @@ const stageResolver = {
       });
     },
 
-    updateStage: async (_: unknown, { id, input }: UpdateStageArgs) => {
+    updateStage: async (
+      _: unknown,
+      { id, input }: UpdateStageArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       const updateData: Partial<StageDocument> = {};
 
       if (typeof input.name === "string") updateData.name = input.name;
@@ -65,7 +80,12 @@ const stageResolver = {
       });
     },
 
-    deleteStage: async (_: unknown, { id }: StageArgs) => {
+    deleteStage: async (
+      _: unknown,
+      { id }: StageArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       const stageId = toObjectId(id);
       const deleted = await stageModel.findByIdAndDelete(stageId);
 
@@ -77,7 +97,12 @@ const stageResolver = {
       return true;
     },
 
-    activateStage: async (_: unknown, { id }: StageArgs) => {
+    activateStage: async (
+      _: unknown,
+      { id }: StageArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       const stageId = toObjectId(id);
       const existingStage = await stageModel.findById(stageId);
 

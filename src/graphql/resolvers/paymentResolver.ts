@@ -3,8 +3,10 @@ import paymentModel from "@/src/models/Payment";
 import contestantModel from "@/src/models/Contestant";
 import {
   normalizePaymentStatus,
+  requireAdmin,
   serializeDate,
   toObjectId,
+  type GraphQLContext,
 } from "./utils";
 
 type PaymentsArgs = {
@@ -19,7 +21,12 @@ type PaymentArgs = {
 
 const paymentResolver = {
   Query: {
-    payments: async (_: unknown, { status, contestantId }: PaymentsArgs) => {
+    payments: async (
+      _: unknown,
+      { status, contestantId }: PaymentsArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       const filter: Record<string, unknown> = {};
       const normalizedStatus = normalizePaymentStatus(status);
 
@@ -34,7 +41,12 @@ const paymentResolver = {
       return paymentModel.find(filter).sort({ createdAt: -1 });
     },
 
-    payment: async (_: unknown, { id, reference }: PaymentArgs) => {
+    payment: async (
+      _: unknown,
+      { id, reference }: PaymentArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       if (!id && !reference) {
         throw new GraphQLError("Provide either a payment id or reference.");
       }

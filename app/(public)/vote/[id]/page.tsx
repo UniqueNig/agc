@@ -1,190 +1,261 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import {  X, Minus, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { Minus, Plus, X } from "lucide-react";
 import ThemeToggle from "@/src/components/ui/ThemeToggle";
+import {
+  createVotePayment,
+  fetchContestantById,
+  type VotePageData,
+} from "@/src/lib/graphql/api";
+import {
+  formatCurrency,
+  getContestantInitials,
+} from "@/src/lib/contestants";
 
 const PRICE_PER_VOTE = 100;
 const QUICK_OPTIONS = [5, 10, 25, 50];
-const CONTESTANT_NAMES: Record<string, string> = {
-  "01": "Grace Adeyemi",
-  "02": "Solomon Obi",
-  "03": "Faith Nwosu",
-  "04": "Emmanuel Bello",
-  "05": "Miriam Afolabi",
-  "06": "David Okafor",
-  "07": "Praise Eze",
-  "08": "Joy Adeleke",
-  "09": "Blessed Okeke",
-  "10": "Hope Fashola",
-  "11": "Mercy Adeyinka",
-  "12": "Victor Eze",
-  "13": "Ruth Olawale",
-  "14": "Caleb Martins",
-  "15": "Esther Balogun",
-  "16": "Paul Onuoha",
-  "17": "Abigail Otu",
-  "18": "Joshua Adeyemi",
-  "19": "Naomi Ogundele",
-  "20": "Isaac Fadeyibi",
-  "21": "Lydia Omonuwa",
-  "22": "Samuel Adeolu",
-  "23": "Ruth Chime",
-  "24": "Daniel Omale",
-};
-
 
 export default function VotePage() {
-  const params = useParams<{ id?: string }>();
-  const searchParams = useSearchParams();
+  const params = useParams<{ id: string }>();
   const router = useRouter();
-
-  const contestantNum = typeof params?.id === "string" ? params.id : searchParams.get("id") ?? "01";
-  const contestantName =
-    CONTESTANT_NAMES[contestantNum] ?? searchParams.get("name") ?? "Grace Adeyemi";
-  const initials = contestantName
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
+  const [data, setData] = useState<VotePageData | null>(null);
+  const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
   const [votes, setVotes] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const total = votes * PRICE_PER_VOTE;
+  useEffect(() => {
+    let cancelled = false;
 
-  const adjust = (delta: number) => setVotes((v) => Math.max(1, v + delta));
+    const loadContestant = async () => {
+      try {
+        const response = await fetchContestantById(params.id);
+        if (!cancelled) {
+          setData(response);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "We could not load this contestant."
+          );
+        }
+      }
+    };
+
+    void loadContestant();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id]);
+
+  const contestant = data?.contestant ?? null;
+  const total = votes * PRICE_PER_VOTE;
+  const canPay = contestant?.status === "active";
+
+  const adjust = (delta: number) => {
+    setVotes((current) => Math.max(1, current + delta));
+  };
 
   const handlePay = async () => {
-    setLoading(true);
-    // TODO: Initialize Paystack here
-    // const handler = PaystackPop.setup({ key: process.env.NEXT_PUBLIC_PAYSTACK_KEY, ... });
-    // handler.openIframe();
-    await new Promise((r) => setTimeout(r, 1200)); // placeholder
-    setLoading(false);
-    alert(`Payment of ₦${total.toLocaleString()} initiated for ${votes} vote${votes > 1 ? "s" : ""} for ${contestantName}`);
+    if (!contestant) {
+      setError("Contestant details are not ready yet.");
+      return;
+    }
+
+    if (!email.trim()) {
+      setError("Enter the voter email before continuing.");
+      return;
+    }
+
+    if (!canPay) {
+      setError("Voting is only available for active contestants.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      const payment = await createVotePayment({
+        contestantId: contestant.id,
+        votes,
+        email: email.trim().toLowerCase(),
+      });
+
+      window.location.assign(payment.authorizationUrl);
+    } catch (paymentError) {
+      setError(
+        paymentError instanceof Error
+          ? paymentError.message
+          : "We could not initialize the payment."
+      );
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-[#0a0414] text-stone-900 dark:text-stone-100 transition-colors duration-300 flex flex-col">
-
-      {/* NAV */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-yellow-600/20 dark:border-yellow-500/20">
-        <span className="font-serif text-lg font-bold text-yellow-600 dark:text-yellow-400">
+    <div className="flex min-h-screen flex-col bg-stone-50 text-stone-900 transition-colors duration-300 dark:bg-[#0a0414] dark:text-stone-100">
+      <nav className="flex items-center justify-between border-b border-yellow-600/20 px-6 py-4 dark:border-yellow-500/20">
+        <Link href="/" className="font-serif text-lg font-bold text-yellow-600 dark:text-yellow-400">
           GOSPEL<span className="text-stone-900 dark:text-stone-100">AGT</span>
-        </span>
+        </Link>
         <ThemeToggle />
       </nav>
 
-      {/* MODAL CENTERED */}
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md bg-white dark:bg-[#130a22] border border-stone-200 dark:border-yellow-500/[0.18] rounded-3xl overflow-hidden relative">
-
-          {/* Close */}
+      <div className="flex flex-1 items-center justify-center px-4 py-12">
+        <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-stone-200 bg-white dark:border-yellow-500/[0.18] dark:bg-[#130a22]">
           <button
             onClick={() => router.back()}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-stone-100 dark:bg-white/[0.06] border border-stone-200 dark:border-white/[0.1] text-stone-400 dark:text-stone-500 flex items-center justify-center hover:opacity-70 transition-opacity"
+            className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full border border-stone-200 bg-stone-100 text-stone-400 transition-opacity hover:opacity-70 dark:border-white/[0.1] dark:bg-white/[0.06] dark:text-stone-500"
           >
             <X size={14} />
           </button>
 
-          {/* Contestant info */}
-          <div className="p-6 pb-0 flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-900/40 to-purple-950/70 border border-yellow-500/20 flex items-center justify-center font-serif text-2xl text-yellow-500/70 dark:text-yellow-400/60 flex-shrink-0">
-              {initials}
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.15em] text-yellow-600 dark:text-yellow-400 mb-0.5">
-                Contestant #{contestantNum}
+          {contestant ? (
+            <>
+              <div className="flex items-center gap-4 p-6 pb-0">
+                <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl border border-yellow-500/20 bg-gradient-to-br from-purple-900/40 to-purple-950/70 font-serif text-2xl text-yellow-500/70 dark:text-yellow-400/60">
+                  {getContestantInitials(contestant.name)}
+                </div>
+                <div>
+                  <div className="mb-0.5 text-[11px] uppercase tracking-[0.15em] text-yellow-600 dark:text-yellow-400">
+                    Contestant #{contestant.contestantNumber}
+                  </div>
+                  <div className="font-serif text-xl font-bold text-stone-900 dark:text-stone-100">
+                    {contestant.name}
+                  </div>
+                  <div className="mt-0.5 text-xs text-stone-400 dark:text-stone-500">
+                    {contestant.stage?.name ?? "Competition stage pending"}
+                  </div>
+                </div>
               </div>
-              <div className="font-serif text-xl font-bold text-stone-900 dark:text-stone-100">{contestantName}</div>
-              <div className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">Stage 3 · Semi-Finals</div>
-            </div>
-          </div>
 
-          <div className="h-px bg-stone-100 dark:bg-white/[0.07] mx-6 my-5" />
+              <div className="mx-6 my-5 h-px bg-stone-100 dark:bg-white/[0.07]" />
 
-          <div className="px-6 pb-6">
-            {/* Vote count input */}
-            <label className="block text-[11px] uppercase tracking-[0.12em] text-stone-400 dark:text-stone-500 mb-3">
-              Number of votes
-            </label>
-            <div className="flex items-center gap-3 mb-4">
-              <button
-                onClick={() => adjust(-1)}
-                className="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-600 dark:text-yellow-400 flex items-center justify-center hover:bg-yellow-500/20 transition-colors flex-shrink-0"
-              >
-                <Minus size={16} />
-              </button>
-              <input
-                type="number"
-                min={1}
-                value={votes}
-                onChange={(e) => setVotes(Math.max(1, parseInt(e.target.value) || 1))}
-                className="min-w-0 flex-1 appearance-none bg-stone-50 dark:bg-white/[0.05] border border-stone-200 dark:border-white/[0.12] rounded-xl px-3 py-2.5 text-center font-serif text-3xl font-bold text-stone-900 dark:text-stone-100 outline-none focus:border-yellow-500/50 transition-colors [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              />
-              <button
-                onClick={() => adjust(1)}
-                className="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-600 dark:text-yellow-400 flex items-center justify-center hover:bg-yellow-500/20 transition-colors flex-shrink-0"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
+              <div className="px-6 pb-6">
+                <label className="mb-2 block text-[11px] uppercase tracking-[0.12em] text-stone-400 dark:text-stone-500">
+                  Voter email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  className="mb-5 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors placeholder:text-stone-400 focus:border-yellow-500/50 dark:border-white/[0.12] dark:bg-white/[0.05] dark:text-stone-100 dark:placeholder:text-stone-600"
+                />
 
-            {/* Quick pick buttons */}
-            <div className="grid grid-cols-4 gap-2 mb-6">
-              {QUICK_OPTIONS.map((n) => (
+                <label className="mb-3 block text-[11px] uppercase tracking-[0.12em] text-stone-400 dark:text-stone-500">
+                  Number of votes
+                </label>
+                <div className="mb-4 flex items-center gap-3">
+                  <button
+                    onClick={() => adjust(-1)}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-600 transition-colors hover:bg-yellow-500/20 dark:text-yellow-400"
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={votes}
+                    onChange={(event) =>
+                      setVotes(Math.max(1, Number.parseInt(event.target.value, 10) || 1))
+                    }
+                    className="min-w-0 flex-1 appearance-none rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-center font-serif text-3xl font-bold text-stone-900 outline-none transition-colors [appearance:textfield] focus:border-yellow-500/50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none dark:border-white/[0.12] dark:bg-white/[0.05] dark:text-stone-100"
+                  />
+                  <button
+                    onClick={() => adjust(1)}
+                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-600 transition-colors hover:bg-yellow-500/20 dark:text-yellow-400"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+
+                <div className="mb-6 grid grid-cols-4 gap-2">
+                  {QUICK_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => setVotes(option)}
+                      className={`rounded-xl border py-2 text-sm transition-all ${
+                        votes === option
+                          ? "border-yellow-500/50 bg-yellow-500/15 text-yellow-600 dark:text-yellow-400"
+                          : "border-stone-200 bg-stone-50 text-stone-500 hover:border-yellow-500/30 hover:text-yellow-600 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-stone-400 dark:hover:text-yellow-400"
+                      }`}
+                    >
+                      {option} votes
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mb-5 rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.03]">
+                  <div className="flex items-center justify-between border-b border-stone-200 py-2 dark:border-white/[0.06]">
+                    <span className="text-sm text-stone-500 dark:text-stone-400">Price per vote</span>
+                    <span className="text-sm font-medium text-stone-900 dark:text-stone-100">{formatCurrency(PRICE_PER_VOTE)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-stone-200 py-2 dark:border-white/[0.06]">
+                    <span className="text-sm text-stone-500 dark:text-stone-400">Number of votes</span>
+                    <span className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                      {votes} {votes === 1 ? "vote" : "votes"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-3">
+                    <span className="text-sm font-medium text-stone-700 dark:text-stone-300">Total amount</span>
+                    <span className="font-serif text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                      {formatCurrency(total)}
+                    </span>
+                  </div>
+                </div>
+
+                {!canPay && (
+                  <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                    Voting is currently unavailable for this contestant.
+                  </div>
+                )}
+
+                {error && (
+                  <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                    {error}
+                  </div>
+                )}
+
                 <button
-                  key={n}
-                  onClick={() => setVotes(n)}
-                  className={`py-2 rounded-xl text-sm border transition-all ${
-                    votes === n
-                      ? "bg-yellow-500/15 border-yellow-500/50 text-yellow-600 dark:text-yellow-400"
-                      : "bg-stone-50 dark:bg-white/[0.04] border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-stone-400 hover:border-yellow-500/30 hover:text-yellow-600 dark:hover:text-yellow-400"
-                  }`}
+                  onClick={handlePay}
+                  disabled={loading || !canPay}
+                  className="w-full rounded-2xl bg-yellow-500 py-4 text-[15px] font-medium text-stone-900 transition-all hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 dark:bg-yellow-400"
                 >
-                  {n} votes
+                  {loading
+                    ? "Redirecting to Paystack..."
+                    : `Proceed to Pay -> ${formatCurrency(total)}`}
                 </button>
-              ))}
+
+                <p className="mt-3 text-center text-xs text-stone-400 dark:text-stone-600">
+                  Powered by <span className="text-yellow-600 dark:text-yellow-500">Paystack</span> · Secure payment
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="px-6 py-16 text-center">
+              <div className="mb-2 font-serif text-xl text-stone-900 dark:text-stone-100">
+                Loading contestant...
+              </div>
+              <p className="text-sm text-stone-400 dark:text-stone-500">
+                We are preparing the voting form for you.
+              </p>
+              {error && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                  {error}
+                </div>
+              )}
             </div>
-
-            {/* Price breakdown */}
-            <div className="bg-stone-50 dark:bg-white/[0.03] border border-stone-200 dark:border-white/[0.08] rounded-2xl p-4 mb-5">
-              <div className="flex justify-between items-center py-2 border-b border-stone-200 dark:border-white/[0.06]">
-                <span className="text-sm text-stone-500 dark:text-stone-400">Price per vote</span>
-                <span className="text-sm font-medium text-stone-900 dark:text-stone-100">₦100</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-stone-200 dark:border-white/[0.06]">
-                <span className="text-sm text-stone-500 dark:text-stone-400">Number of votes</span>
-                <span className="text-sm font-medium text-stone-900 dark:text-stone-100">
-                  {votes} {votes === 1 ? "vote" : "votes"}
-                </span>
-              </div>
-              <div className="flex justify-between items-center pt-3">
-                <span className="text-sm font-medium text-stone-700 dark:text-stone-300">Total amount</span>
-                <span className="font-serif text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                  ₦{total.toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {/* Pay button */}
-            <button
-              onClick={handlePay}
-              disabled={loading}
-              className="w-full bg-yellow-500 dark:bg-yellow-400 text-stone-900 font-medium py-4 rounded-2xl text-[15px] hover:opacity-90 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0 transition-all"
-            >
-              {loading ? "Processing…" : `Proceed to Pay → ₦${total.toLocaleString()}`}
-            </button>
-
-            <p className="text-center text-xs text-stone-400 dark:text-stone-600 mt-3">
-              Powered by <span className="text-yellow-600 dark:text-yellow-500">Paystack</span> · Secure payment
-            </p>
-          </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+

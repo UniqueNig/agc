@@ -5,25 +5,34 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/src/components/ui/ThemeToggle";
 
-export default function AdminLoginPage() {
+export default function AdminSetupPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch("/api/admin/login", {
+      const response = await fetch("/api/admin/setup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          name,
           email,
           password,
         }),
@@ -32,16 +41,16 @@ export default function AdminLoginPage() {
       const payload = (await response.json()) as { message?: string };
 
       if (!response.ok) {
-        throw new Error(payload.message ?? "Unable to sign you in.");
+        throw new Error(payload.message ?? "Unable to create admin account.");
       }
 
       router.replace("/admin");
       router.refresh();
-    } catch (loginError) {
+    } catch (setupError) {
       setError(
-        loginError instanceof Error
-          ? loginError.message
-          : "Unable to sign you in."
+        setupError instanceof Error
+          ? setupError.message
+          : "Unable to create admin account."
       );
       setLoading(false);
     }
@@ -67,17 +76,30 @@ export default function AdminLoginPage() {
         <div className="relative z-10 w-full max-w-md rounded-3xl border border-stone-200 bg-white/90 p-7 shadow-[0_25px_80px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-yellow-500/[0.16] dark:bg-[#130a22]/95">
           <div className="mb-6">
             <div className="mb-3 inline-block rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-yellow-600 dark:text-yellow-400">
-              Admin Access
+              Admin Setup
             </div>
             <h1 className="font-serif text-3xl font-bold text-stone-900 dark:text-stone-100">
-              Sign in to manage GospelAGC
+              Create your admin account
             </h1>
             <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
-              Use your admin credentials to manage contestants, stages, and payment activity.
+              This first account will own the admin dashboard and unlock contestant, stage, and payment management.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="mb-2 block text-[11px] uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">
+                Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Your name"
+                className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors placeholder:text-stone-400 focus:border-yellow-500/40 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-100 dark:placeholder:text-stone-600"
+              />
+            </div>
+
             <div>
               <label className="mb-2 block text-[11px] uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">
                 Email
@@ -101,9 +123,24 @@ export default function AdminLoginPage() {
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Enter password"
+                placeholder="At least 8 characters"
                 className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors placeholder:text-stone-400 focus:border-yellow-500/40 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-100 dark:placeholder:text-stone-600"
-                autoComplete="current-password"
+                autoComplete="new-password"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-[11px] uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">
+                Confirm password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="Repeat password"
+                className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors placeholder:text-stone-400 focus:border-yellow-500/40 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-100 dark:placeholder:text-stone-600"
+                autoComplete="new-password"
                 required
               />
             </div>
@@ -119,22 +156,19 @@ export default function AdminLoginPage() {
               disabled={loading}
               className="w-full rounded-2xl bg-yellow-500 py-3.5 text-sm font-medium text-stone-900 transition-all hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 dark:bg-yellow-400"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Creating account..." : "Create Admin Account"}
             </button>
           </form>
 
           <div className="mt-5 border-t border-stone-200 pt-4 text-xs text-stone-400 dark:border-white/[0.08] dark:text-stone-500">
-            Protected admin actions are now checked with a signed session before access is granted.
-            <div className="mt-3">
-              First time here?{" "}
-              <Link
-                href="/admin/setup"
-                className="text-yellow-600 transition-colors hover:text-yellow-500 dark:text-yellow-400 dark:hover:text-yellow-300"
-              >
-                Create your admin account
-              </Link>
-              .
-            </div>
+            Already set up?{" "}
+            <Link
+              href="/admin/login"
+              className="text-yellow-600 transition-colors hover:text-yellow-500 dark:text-yellow-400 dark:hover:text-yellow-300"
+            >
+              Sign in instead
+            </Link>
+            .
           </div>
         </div>
       </div>

@@ -5,24 +5,54 @@ import { ApolloServer } from "@apollo/server";
 import { startServerAndCreateNextHandler } from "@as-integrations/next";
 import { resolvers, typeDefs } from "@/src/graphql";
 import { connectDB } from "@/src/lib/db";
+import type { GraphQLContext } from "@/src/graphql/resolvers/utils";
+import {
+  ADMIN_AUTH_COOKIE,
+  verifyAdminToken,
+} from "@/src/lib/admin-auth";
 
 
-const server = new ApolloServer({
+const server = new ApolloServer<GraphQLContext>({
   typeDefs,
   resolvers,
 });
 
-const handler = startServerAndCreateNextHandler<NextRequest>(server, {
+const handler = startServerAndCreateNextHandler<NextRequest, GraphQLContext>(server, {
   context: async (req) => {
-    await connectDB();
-    return { req };
+    const token = req.cookies.get(ADMIN_AUTH_COOKIE)?.value;
+
+    return {
+      req,
+      adminSession: token ? verifyAdminToken(token) : null,
+    };
   },
 });
 
+async function handleGraphQLRequest(request: NextRequest) {
+  try {
+    await connectDB();
+    return handler(request);
+  } catch (error) {
+    return Response.json(
+      {
+        errors: [
+          {
+            message:
+              error instanceof Error
+                ? error.message
+                : "Unable to connect to the database.",
+          },
+        ],
+      },
+      { status: 500 }
+    );
+  }
+}
+
 export async function GET(request: NextRequest) {
-  return handler(request);
+  return handleGraphQLRequest(request);
 }
 
 export async function POST(request: NextRequest) {
-  return handler(request);
+  return handleGraphQLRequest(request);
 }

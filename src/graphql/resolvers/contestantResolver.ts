@@ -7,8 +7,10 @@ import paymentModel from "@/src/models/Payment";
 import voteModel from "@/src/models/Vote";
 import {
   normalizeContestantStatus,
+  requireAdmin,
   serializeDate,
   toObjectId,
+  type GraphQLContext,
 } from "./utils";
 
 type ContestantsArgs = {
@@ -83,7 +85,12 @@ const contestantResolver = {
   },
 
   Mutation: {
-    createContestant: async (_: unknown, { input }: CreateContestantArgs) => {
+    createContestant: async (
+      _: unknown,
+      { input }: CreateContestantArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       const normalizedStatus = normalizeContestantStatus(input.status) ?? "pending";
       const existingContestant = await contestantModel.findOne({
         contestantNumber: input.contestantNumber,
@@ -112,7 +119,12 @@ const contestantResolver = {
       });
     },
 
-    updateContestant: async (_: unknown, { id, input }: UpdateContestantArgs) => {
+    updateContestant: async (
+      _: unknown,
+      { id, input }: UpdateContestantArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       const updateData: Partial<ContestantDocument> = {};
 
       if (typeof input.name === "string") updateData.name = input.name;
@@ -155,7 +167,12 @@ const contestantResolver = {
       });
     },
 
-    deleteContestant: async (_: unknown, { id }: ContestantArgs) => {
+    deleteContestant: async (
+      _: unknown,
+      { id }: ContestantArgs,
+      context: GraphQLContext
+    ) => {
+      requireAdmin(context);
       const contestantId = toObjectId(id);
       const deleted = await contestantModel.findByIdAndDelete(contestantId);
 
