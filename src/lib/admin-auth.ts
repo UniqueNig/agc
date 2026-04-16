@@ -127,10 +127,6 @@ export async function hasAdminUsers() {
 }
 
 export async function isAdminSetupRequired() {
-  if (hasEnvAdminCredentials()) {
-    return false;
-  }
-
   try {
     return !(await hasAdminUsers());
   } catch {
@@ -185,12 +181,8 @@ export async function validateAdminCredentials(email: string, password: string) 
   const normalizedEmail = email.trim().toLowerCase();
   const adminUser = await getStoredAdminByEmail(normalizedEmail);
 
-  if (adminUser) {
-    if (await bcrypt.compare(password, adminUser.passwordHash)) {
-      return mapAdminUserToSession(adminUser);
-    }
-
-    return null;
+  if (adminUser && (await bcrypt.compare(password, adminUser.passwordHash))) {
+    return mapAdminUserToSession(adminUser);
   }
 
   const envSession = getEnvironmentAdminSession(normalizedEmail);
