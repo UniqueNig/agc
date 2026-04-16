@@ -232,6 +232,7 @@ export default function HomePage() {
                   imageSrc={contestant.image}
                   index={index}
                   className="aspect-[4/5] w-full"
+                  sizes="200px"
                   fallbackClassName="font-serif text-3xl text-yellow-500/60 dark:text-yellow-400/50"
                 />
                 <div className="p-4">
@@ -314,6 +315,7 @@ export default function HomePage() {
                           imageSrc={contestant.image}
                           index={displayIndex}
                           className="h-full w-full rounded-full"
+                          sizes="48px"
                           fallbackClassName="font-serif text-base font-bold"
                         />
                       </div>

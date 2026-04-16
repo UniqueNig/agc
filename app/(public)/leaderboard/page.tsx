@@ -142,6 +142,7 @@ export default function LeaderboardPage() {
                       imageSrc={contestant.image}
                       index={displayIndex}
                       className="h-full w-full rounded-full"
+                      sizes="48px"
                       fallbackClassName="font-serif text-base font-bold"
                     />
                   </div>
@@ -224,6 +225,7 @@ export default function LeaderboardPage() {
                   imageSrc={contestant.image}
                   index={index}
                   className="h-8 w-8 flex-shrink-0 rounded-full"
+                  sizes="32px"
                   fallbackClassName="font-serif text-xs font-bold text-yellow-500/70 dark:text-yellow-400/60"
                 />
                 <div className="flex flex-1 items-center gap-2 text-sm text-stone-900 dark:text-stone-100">

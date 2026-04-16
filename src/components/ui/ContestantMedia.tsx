@@ -25,10 +25,13 @@ export default function ContestantMedia({
   imageClassName = "",
   fallbackClassName = "",
   alt,
-  sizes = "100vw",
+  sizes = "96px",
   children,
 }: ContestantMediaProps) {
   const normalizedImage = imageSrc?.trim();
+  const shouldBypassOptimizer = normalizedImage?.includes(
+    "res.cloudinary.com"
+  );
 
   return (
     <div className={`relative overflow-hidden ${className}`.trim()}>
@@ -38,6 +41,7 @@ export default function ContestantMedia({
           alt={alt ?? `${name} contestant photo`}
           fill
           sizes={sizes}
+          unoptimized={shouldBypassOptimizer}
           className={`object-cover ${imageClassName}`.trim()}
         />
       ) : (

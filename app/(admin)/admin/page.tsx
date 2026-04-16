@@ -1110,6 +1110,7 @@ export default function AdminDashboard() {
                                 imageSrc={payment.contestant?.image}
                                 index={0}
                                 className="h-8 w-8 flex-shrink-0 rounded-full"
+                                sizes="32px"
                                 fallbackClassName="font-serif text-xs text-yellow-500/70 dark:text-yellow-400/60"
                               />
                               <div className="min-w-0 flex-1">
@@ -1185,6 +1186,7 @@ export default function AdminDashboard() {
                                 imageSrc={contestant.image}
                                 index={Number(contestant.contestantNumber) || 0}
                                 className="h-10 w-10 rounded-full border border-yellow-500/25"
+                                sizes="40px"
                                 fallbackClassName="font-serif text-[11px] font-bold text-yellow-700 dark:text-yellow-400"
                               />
                             </td>
@@ -1726,6 +1728,7 @@ export default function AdminDashboard() {
                       imageSrc={contestantImagePreview || contestantForm.image}
                       index={Number(contestantForm.contestantNumber) || 0}
                       className="h-24 w-24 rounded-2xl border border-yellow-500/20"
+                      sizes="96px"
                       fallbackClassName="font-serif text-2xl text-yellow-500/70 dark:text-yellow-400/60"
                     />
                     <div className="min-w-0 flex-1">

@@ -123,6 +123,7 @@ export default function VotePage() {
                   name={contestant.name}
                   imageSrc={contestant.image}
                   className="h-16 w-16 flex-shrink-0 rounded-2xl border border-yellow-500/20"
+                  sizes="64px"
                   fallbackClassName="font-serif text-2xl text-yellow-500/70 dark:text-yellow-400/60"
                 />
                 <div>

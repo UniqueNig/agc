@@ -101,6 +101,26 @@ function hasEnvAdminCredentials() {
   );
 }
 
+async function matchesEnvironmentAdminPassword(password: string) {
+  const credentials = getAdminCredentials();
+
+  if (credentials.passwordHash) {
+    try {
+      if (await bcrypt.compare(password, credentials.passwordHash)) {
+        return true;
+      }
+    } catch {
+      // Ignore invalid hashes and fall back to the plain password if present.
+    }
+  }
+
+  if (credentials.password) {
+    return password === credentials.password;
+  }
+
+  return false;
+}
+
 export async function hasAdminUsers() {
   await connectDB();
   return (await adminUserModel.countDocuments()) > 0;
@@ -162,7 +182,6 @@ async function getStoredAdminByEmail(email: string) {
 }
 
 export async function validateAdminCredentials(email: string, password: string) {
-  const credentials = getAdminCredentials();
   const normalizedEmail = email.trim().toLowerCase();
   const adminUser = await getStoredAdminByEmail(normalizedEmail);
 
@@ -180,13 +199,7 @@ export async function validateAdminCredentials(email: string, password: string) 
     return null;
   }
 
-  if (credentials.passwordHash) {
-    return (await bcrypt.compare(password, credentials.passwordHash))
-      ? envSession
-      : null;
-  }
-
-  return password === credentials.password ? envSession : null;
+  return (await matchesEnvironmentAdminPassword(password)) ? envSession : null;
 }
 
 export function signAdminToken(email: string) {
