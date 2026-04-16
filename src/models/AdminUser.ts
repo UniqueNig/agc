@@ -1,4 +1,5 @@
 import mongoose, { InferSchemaType, Model } from "mongoose";
+import { ADMIN_ROLES } from "@/src/lib/admin-permissions";
 
 const adminUserSchema = new mongoose.Schema(
   {
@@ -16,6 +17,12 @@ const adminUserSchema = new mongoose.Schema(
     },
     passwordHash: {
       type: String,
+      required: true,
+    },
+    role: {
+      type: String,
+      enum: ADMIN_ROLES,
+      default: "viewer",
       required: true,
     },
   },

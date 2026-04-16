@@ -34,16 +34,17 @@ export async function POST(request: Request) {
       );
     }
 
-    await createAdminAccount({
+    const adminUser = await createAdminAccount({
       name,
       email,
       password,
+      role: "super_admin",
     });
 
     const response = NextResponse.json({ success: true });
     response.cookies.set(
       ADMIN_AUTH_COOKIE,
-      signAdminToken(email),
+      signAdminToken(adminUser.email),
       getAdminCookieOptions()
     );
 

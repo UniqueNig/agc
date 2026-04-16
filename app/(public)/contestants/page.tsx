@@ -5,13 +5,12 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import Footer from "@/src/components/layouts/Footer";
 import Navbar from "@/src/components/layouts/Navbar";
+import ContestantMedia from "@/src/components/ui/ContestantMedia";
 import {
   fetchContestantsPageData,
   type ContestantsPageData,
 } from "@/src/lib/graphql/api";
 import {
-  getContestantGradient,
-  getContestantInitials,
   getVotePercentage,
 } from "@/src/lib/contestants";
 
@@ -170,10 +169,13 @@ export default function ContestantsPage() {
                       : "cursor-pointer hover:-translate-y-1 hover:border-yellow-500/40"
                   }`}
                 >
-                  <div
-                    className={`relative flex aspect-[3/4] w-full items-center justify-center bg-gradient-to-br ${getContestantGradient(index)} font-serif text-3xl text-yellow-500/60 dark:text-yellow-400/50`}
+                  <ContestantMedia
+                    name={contestant.name}
+                    imageSrc={contestant.image}
+                    index={index}
+                    className="aspect-[3/4] w-full"
+                    fallbackClassName="font-serif text-3xl text-yellow-500/60 dark:text-yellow-400/50"
                   >
-                    {getContestantInitials(contestant.name)}
                     {isEliminated ? (
                       <span className="absolute bottom-2 left-2 rounded bg-red-500/70 px-2 py-0.5 text-[9px] uppercase tracking-wide text-white">
                         Eliminated
@@ -183,7 +185,7 @@ export default function ContestantsPage() {
                         Active
                       </span>
                     )}
-                  </div>
+                  </ContestantMedia>
                   <div className="p-3">
                     <div className="text-[10px] uppercase tracking-[0.12em] text-yellow-600 dark:text-yellow-400">
                       #{contestant.contestantNumber}

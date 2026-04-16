@@ -1,13 +1,13 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 import React, { useSyncExternalStore } from "react";
+import { useAppTheme } from "@/src/components/ui/AppThemeProvider";
 
 const subscribe = () => () => {};
 
 const ThemeToggle = () => {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme } = useAppTheme();
   const mounted = useSyncExternalStore(subscribe, () => true, () => false);
 
   if (!mounted) return <div className="w-9 h-9" />;

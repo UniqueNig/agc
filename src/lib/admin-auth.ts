@@ -3,18 +3,26 @@ import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 import adminUserModel from "@/src/models/AdminUser";
 import { connectDB } from "@/src/lib/db";
+import {
+  isAdminRole,
+  type AdminRole,
+} from "@/src/lib/admin-permissions";
 
 export const ADMIN_AUTH_COOKIE = "agc-admin-session";
 export const ADMIN_SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 type AdminJwtPayload = {
   email: string;
-  role: "admin";
 };
 
-type AdminSession = {
+export type AdminSession = {
+  id: string;
+  name: string;
   email: string;
-  role: "admin";
+  role: AdminRole;
+  source: "database" | "environment";
+  createdAt: string | null;
+  updatedAt: string | null;
 };
 
 function getJwtSecret() {
@@ -42,6 +50,49 @@ function getAdminCredentials() {
     passwordHash: passwordHash || "",
   };
 }
+
+const mapAdminUserToSession = (adminUser: {
+  _id: { toString(): string };
+  name?: string;
+  email: string;
+  role: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}): AdminSession => ({
+  id: adminUser._id.toString(),
+  name: adminUser.name ?? "",
+  email: adminUser.email,
+  role: isAdminRole(adminUser.role) ? adminUser.role : "viewer",
+  source: "database",
+  createdAt: adminUser.createdAt
+    ? new Date(adminUser.createdAt).toISOString()
+    : null,
+  updatedAt: adminUser.updatedAt
+    ? new Date(adminUser.updatedAt).toISOString()
+    : null,
+});
+
+const getEnvironmentAdminSession = (email?: string) => {
+  const credentials = getAdminCredentials();
+
+  if (!hasEnvAdminCredentials()) {
+    return null;
+  }
+
+  if (email && email.trim().toLowerCase() !== credentials.email) {
+    return null;
+  }
+
+  return {
+    id: `env:${credentials.email}`,
+    name: "Environment Admin",
+    email: credentials.email,
+    role: "super_admin" as const,
+    source: "environment" as const,
+    createdAt: null,
+    updatedAt: null,
+  };
+};
 
 function hasEnvAdminCredentials() {
   const credentials = getAdminCredentials();
@@ -71,60 +122,77 @@ export async function createAdminAccount(input: {
   name?: string;
   email: string;
   password: string;
+  role?: AdminRole;
 }) {
   await connectDB();
-
-  if (await hasAdminUsers()) {
-    throw new Error("An admin account already exists. Sign in instead.");
-  }
 
   const email = input.email.trim().toLowerCase();
   const password = input.password.trim();
   const name = input.name?.trim() ?? "";
+  const existingAdmin = await adminUserModel.exists({ email });
 
   if (!email) {
     throw new Error("Email is required.");
+  }
+
+  if (existingAdmin) {
+    throw new Error("An admin with this email already exists.");
   }
 
   if (password.length < 8) {
     throw new Error("Password must be at least 8 characters long.");
   }
 
+  const existingAdminCount = await adminUserModel.countDocuments();
   const passwordHash = await bcrypt.hash(password, 12);
+  const role =
+    input.role ?? (existingAdminCount === 0 ? "super_admin" : "viewer");
 
   return adminUserModel.create({
     name,
     email,
     passwordHash,
+    role,
   });
 }
 
-export async function validateAdminCredentials(email: string, password: string) {
+async function getStoredAdminByEmail(email: string) {
   await connectDB();
+  return adminUserModel.findOne({ email });
+}
+
+export async function validateAdminCredentials(email: string, password: string) {
   const credentials = getAdminCredentials();
   const normalizedEmail = email.trim().toLowerCase();
-  const adminUser = await adminUserModel.findOne({ email: normalizedEmail });
+  const adminUser = await getStoredAdminByEmail(normalizedEmail);
 
   if (adminUser) {
-    return bcrypt.compare(password, adminUser.passwordHash);
+    if (await bcrypt.compare(password, adminUser.passwordHash)) {
+      return mapAdminUserToSession(adminUser);
+    }
+
+    return null;
   }
 
-  if (!hasEnvAdminCredentials() || normalizedEmail !== credentials.email) {
-    return false;
+  const envSession = getEnvironmentAdminSession(normalizedEmail);
+
+  if (!envSession) {
+    return null;
   }
 
   if (credentials.passwordHash) {
-    return bcrypt.compare(password, credentials.passwordHash);
+    return (await bcrypt.compare(password, credentials.passwordHash))
+      ? envSession
+      : null;
   }
 
-  return password === credentials.password;
+  return password === credentials.password ? envSession : null;
 }
 
 export function signAdminToken(email: string) {
   return jwt.sign(
     {
       email,
-      role: "admin",
     } satisfies AdminJwtPayload,
     getJwtSecret(),
     {
@@ -133,19 +201,17 @@ export function signAdminToken(email: string) {
   );
 }
 
-export function verifyAdminToken(token: string): AdminSession | null {
+function verifyAdminTokenPayload(token: string): AdminJwtPayload | null {
   try {
     const decoded = jwt.verify(token, getJwtSecret());
 
     if (
       typeof decoded === "object" &&
       decoded &&
-      decoded.role === "admin" &&
       typeof decoded.email === "string"
     ) {
       return {
         email: decoded.email,
-        role: "admin",
       };
     }
 
@@ -153,6 +219,23 @@ export function verifyAdminToken(token: string): AdminSession | null {
   } catch {
     return null;
   }
+}
+
+export async function getAdminSessionFromToken(token: string) {
+  const decoded = verifyAdminTokenPayload(token);
+
+  if (!decoded) {
+    return null;
+  }
+
+  const normalizedEmail = decoded.email.trim().toLowerCase();
+  const storedAdmin = await getStoredAdminByEmail(normalizedEmail);
+
+  if (storedAdmin) {
+    return mapAdminUserToSession(storedAdmin);
+  }
+
+  return getEnvironmentAdminSession(normalizedEmail);
 }
 
 export async function getAdminSession() {
@@ -163,7 +246,7 @@ export async function getAdminSession() {
     return null;
   }
 
-  return verifyAdminToken(token);
+  return getAdminSessionFromToken(token);
 }
 
 export function getAdminCookieOptions() {

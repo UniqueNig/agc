@@ -35,9 +35,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const isValid = await validateAdminCredentials(email, password);
+    const session = await validateAdminCredentials(email, password);
 
-    if (!isValid) {
+    if (!session) {
       return NextResponse.json(
         { message: "Invalid admin credentials." },
         { status: 401 }
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ success: true });
     response.cookies.set(
       ADMIN_AUTH_COOKIE,
-      signAdminToken(email),
+      signAdminToken(session.email),
       getAdminCookieOptions()
     );
 

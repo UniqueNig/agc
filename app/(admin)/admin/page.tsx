@@ -12,36 +12,48 @@ import {
   Pencil,
   Play,
   Settings,
+  ShieldCheck,
   Square,
   TrendingUp,
+  Trash2,
   Users,
   XCircle,
   Zap,
 } from "lucide-react";
 import ThemeToggle from "@/src/components/ui/ThemeToggle";
+import ContestantMedia from "@/src/components/ui/ContestantMedia";
 import {
   activateStage,
+  createAdminUser,
   createContestant,
   createStage,
+  deleteAdminUser,
   deleteContestant,
   fetchAdminDashboardData,
+  updateAdminUser,
   updateContestant,
   updateStage,
   type AdminDashboardData,
 } from "@/src/lib/graphql/api";
 import {
+  adminRoleOptions,
+  formatAdminRole,
+  hasAdminPermission,
+  type AdminRole,
+} from "@/src/lib/admin-permissions";
+import {
   formatCurrency,
   formatStageLabel,
-  getContestantInitials,
 } from "@/src/lib/contestants";
 import type {
+  GraphQLAdminUser,
   ContestantStatus,
   GraphQLContestant,
   GraphQLStage,
   PaymentStatus,
 } from "@/src/lib/graphql/types";
 
-type Tab = "overview" | "contestants" | "stages" | "payments";
+type Tab = "overview" | "contestants" | "stages" | "payments" | "admins";
 type DerivedStageStatus = "ended" | "live" | "upcoming";
 
 type ContestantFormState = {
@@ -58,6 +70,14 @@ type StageFormState = {
   isActive: boolean;
 };
 
+type AdminFormState = {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: AdminRole;
+};
+
 const AUTO_ELIMINATE_COUNT = 4;
 
 const pageTitles: Record<Tab, string> = {
@@ -65,6 +85,7 @@ const pageTitles: Record<Tab, string> = {
   contestants: "Manage Contestants",
   stages: "Manage Stages",
   payments: "Payment Logs",
+  admins: "Admin Users",
 };
 
 const emptyContestantForm = (): ContestantFormState => ({
@@ -79,6 +100,14 @@ const emptyContestantForm = (): ContestantFormState => ({
 const emptyStageForm = (): StageFormState => ({
   name: "",
   isActive: false,
+});
+
+const emptyAdminForm = (): AdminFormState => ({
+  id: "",
+  name: "",
+  email: "",
+  password: "",
+  role: "viewer",
 });
 
 const statusBadge = (
@@ -118,6 +147,29 @@ const statusBadge = (
       className={`rounded border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${map[status]}`}
     >
       {label[status]}
+    </span>
+  );
+};
+
+const roleBadge = (role: AdminRole) => {
+  const palette: Record<AdminRole, string> = {
+    super_admin:
+      "border-yellow-500/30 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+    contestant_manager:
+      "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-400",
+    stage_manager:
+      "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-500/25 dark:bg-blue-500/10 dark:text-blue-400",
+    finance_admin:
+      "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-500/25 dark:bg-purple-500/10 dark:text-purple-400",
+    viewer:
+      "border-stone-200 bg-stone-100 text-stone-600 dark:border-white/[0.1] dark:bg-white/[0.05] dark:text-stone-400",
+  };
+
+  return (
+    <span
+      className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${palette[role]}`}
+    >
+      {formatAdminRole(role)}
     </span>
   );
 };
@@ -168,9 +220,16 @@ export default function AdminDashboard() {
   const [isContestantFormOpen, setIsContestantFormOpen] = useState(false);
   const [contestantForm, setContestantForm] = useState(emptyContestantForm());
   const [contestantSubmitting, setContestantSubmitting] = useState(false);
+  const [contestantImageFile, setContestantImageFile] = useState<File | null>(
+    null
+  );
+  const [contestantImagePreview, setContestantImagePreview] = useState("");
   const [isStageFormOpen, setIsStageFormOpen] = useState(false);
   const [stageForm, setStageForm] = useState(emptyStageForm());
   const [stageSubmitting, setStageSubmitting] = useState(false);
+  const [isAdminFormOpen, setIsAdminFormOpen] = useState(false);
+  const [adminForm, setAdminForm] = useState(emptyAdminForm());
+  const [adminSubmitting, setAdminSubmitting] = useState(false);
   const [busyActionId, setBusyActionId] = useState("");
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -195,6 +254,22 @@ export default function AdminDashboard() {
     void refreshDashboard();
   }, []);
 
+  useEffect(() => {
+    if (!contestantImageFile) {
+      setContestantImagePreview("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(contestantImageFile);
+    setContestantImagePreview(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [contestantImageFile]);
+
+  const currentAdmin = data?.currentAdmin ?? null;
+  const adminUsers = data?.adminUsers ?? [];
   const contestants = (data?.contestants ?? []).slice().sort((first, second) => {
     return Number(first.contestantNumber) - Number(second.contestantNumber);
   });
@@ -240,16 +315,56 @@ export default function AdminDashboard() {
     : 0;
   const recentPayments = payments.slice(0, 4);
   const maxStageRevenue = Math.max(...stages.map((stage) => stage.totalVotes), 1);
+  const canManageContestants = currentAdmin
+    ? hasAdminPermission(currentAdmin.role, "manage_contestants")
+    : false;
+  const canManageStages = currentAdmin
+    ? hasAdminPermission(currentAdmin.role, "manage_stages")
+    : false;
+  const canManagePayments = currentAdmin
+    ? hasAdminPermission(currentAdmin.role, "manage_payments")
+    : false;
+  const canManageAdmins = currentAdmin
+    ? hasAdminPermission(currentAdmin.role, "manage_admins")
+    : false;
 
   const navItems = [
-    { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
-    { id: "contestants" as const, label: "Contestants", icon: Users },
-    { id: "stages" as const, label: "Stages", icon: Layers },
-    { id: "payments" as const, label: "Payments", icon: CreditCard },
-  ];
+    { id: "overview" as const, label: "Overview", icon: LayoutDashboard, visible: true },
+    {
+      id: "contestants" as const,
+      label: "Contestants",
+      icon: Users,
+      visible: canManageContestants,
+    },
+    {
+      id: "stages" as const,
+      label: "Stages",
+      icon: Layers,
+      visible: canManageStages,
+    },
+    {
+      id: "payments" as const,
+      label: "Payments",
+      icon: CreditCard,
+      visible: canManagePayments,
+    },
+    {
+      id: "admins" as const,
+      label: "Admins",
+      icon: ShieldCheck,
+      visible: canManageAdmins,
+    },
+  ].filter((item) => item.visible);
+
+  useEffect(() => {
+    if (!loading && navItems.length && !navItems.some((item) => item.id === tab)) {
+      setTab("overview");
+    }
+  }, [loading, navItems, tab]);
 
   const resetContestantForm = () => {
     setContestantForm(emptyContestantForm());
+    setContestantImageFile(null);
     setIsContestantFormOpen(false);
     setContestantSubmitting(false);
   };
@@ -260,17 +375,62 @@ export default function AdminDashboard() {
     setStageSubmitting(false);
   };
 
+  const resetAdminForm = () => {
+    setAdminForm(emptyAdminForm());
+    setIsAdminFormOpen(false);
+    setAdminSubmitting(false);
+  };
+
   const openCreateContestantForm = () => {
     setContestantForm({
       ...emptyContestantForm(),
       stageId: activeStage?.id ?? "",
     });
+    setContestantImageFile(null);
     setIsContestantFormOpen(true);
   };
 
   const openEditContestantForm = (contestant: GraphQLContestant) => {
     setContestantForm(buildContestantFormFromRecord(contestant));
+    setContestantImageFile(null);
     setIsContestantFormOpen(true);
+  };
+
+  const uploadContestantImage = async (file: File) => {
+    const uploadFormData = new FormData();
+    uploadFormData.append("file", file);
+
+    const response = await fetch("/api/uploads/contestant-image", {
+      method: "POST",
+      body: uploadFormData,
+    });
+
+    const payload = (await response.json()) as {
+      url?: string;
+      message?: string;
+    };
+
+    if (!response.ok || !payload.url) {
+      throw new Error(payload.message ?? "Unable to upload contestant image.");
+    }
+
+    return payload.url;
+  };
+
+  const openCreateAdminForm = () => {
+    setAdminForm(emptyAdminForm());
+    setIsAdminFormOpen(true);
+  };
+
+  const openEditAdminForm = (adminUser: GraphQLAdminUser) => {
+    setAdminForm({
+      id: adminUser.id,
+      name: adminUser.name,
+      email: adminUser.email,
+      password: "",
+      role: adminUser.role,
+    });
+    setIsAdminFormOpen(true);
   };
 
   const handleContestantSubmit = async (
@@ -290,10 +450,14 @@ export default function AdminDashboard() {
         throw new Error("Name and contestant number are required.");
       }
 
+      const uploadedImageUrl = contestantImageFile
+        ? await uploadContestantImage(contestantImageFile)
+        : contestantForm.image.trim() || undefined;
+
       if (contestantForm.id) {
         await updateContestant(contestantForm.id, {
           name: contestantForm.name.trim(),
-          image: contestantForm.image.trim() || undefined,
+          image: uploadedImageUrl,
           contestantNumber,
           stageId: contestantForm.stageId || null,
           status: contestantForm.status,
@@ -302,7 +466,7 @@ export default function AdminDashboard() {
       } else {
         await createContestant({
           name: contestantForm.name.trim(),
-          image: contestantForm.image.trim() || undefined,
+          image: uploadedImageUrl,
           contestantNumber,
           stageId: contestantForm.stageId || undefined,
           status: contestantForm.status,
@@ -620,6 +784,77 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleAdminSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAdminSubmitting(true);
+    setError("");
+    setNotice("");
+
+    try {
+      if (!adminForm.name.trim() || !adminForm.email.trim()) {
+        throw new Error("Name and email are required.");
+      }
+
+      if (!adminForm.id && adminForm.password.trim().length < 8) {
+        throw new Error("Password must be at least 8 characters long.");
+      }
+
+      if (adminForm.id) {
+        await updateAdminUser(adminForm.id, {
+          name: adminForm.name.trim(),
+          email: adminForm.email.trim().toLowerCase(),
+          password: adminForm.password.trim() || undefined,
+          role: adminForm.role,
+        });
+        setNotice(`${adminForm.name.trim()} was updated successfully.`);
+      } else {
+        await createAdminUser({
+          name: adminForm.name.trim(),
+          email: adminForm.email.trim().toLowerCase(),
+          password: adminForm.password.trim(),
+          role: adminForm.role,
+        });
+        setNotice(`${adminForm.name.trim()} was created successfully.`);
+      }
+
+      await refreshDashboard();
+      resetAdminForm();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Unable to save admin user."
+      );
+      setAdminSubmitting(false);
+    }
+  };
+
+  const handleDeleteAdmin = async (adminUser: GraphQLAdminUser) => {
+    if (
+      !window.confirm(`Remove ${adminUser.name || adminUser.email} from admin access?`)
+    ) {
+      return;
+    }
+
+    setBusyActionId(`delete-admin-${adminUser.id}`);
+    setError("");
+    setNotice("");
+
+    try {
+      await deleteAdminUser(adminUser.id);
+      setNotice(`${adminUser.name || adminUser.email} was removed.`);
+      await refreshDashboard();
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Unable to delete admin user."
+      );
+    } finally {
+      setBusyActionId("");
+    }
+  };
+
   const handleLogout = async () => {
     setLoggingOut(true);
 
@@ -684,13 +919,15 @@ export default function AdminDashboard() {
               {pageTitles[tab]}
             </div>
             <div className="mt-0.5 text-xs text-stone-400 dark:text-stone-500">
-              Season 1 &middot; Abeokuta Gospel AGC
+              {currentAdmin?.email
+                ? `${currentAdmin.email} / ${formatAdminRole(currentAdmin.role)}`
+                : "Season 1 / Abeokuta Gospel AGC"}
             </div>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <span className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1.5 text-xs text-yellow-600 dark:text-yellow-400">
-              Admin
+              {currentAdmin ? formatAdminRole(currentAdmin.role) : "Admin"}
             </span>
             <button
               onClick={() => void handleLogout()}
@@ -868,11 +1105,13 @@ export default function AdminDashboard() {
                               key={payment.id}
                               className="flex items-center gap-3 py-2.5"
                             >
-                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-purple-900/30 font-serif text-xs text-yellow-500/70 dark:text-yellow-400/60">
-                                {getContestantInitials(
-                                  payment.contestant?.name ?? "Unknown"
-                                )}
-                              </div>
+                              <ContestantMedia
+                                name={payment.contestant?.name ?? "Unknown"}
+                                imageSrc={payment.contestant?.image}
+                                index={0}
+                                className="h-8 w-8 flex-shrink-0 rounded-full"
+                                fallbackClassName="font-serif text-xs text-yellow-500/70 dark:text-yellow-400/60"
+                              />
                               <div className="min-w-0 flex-1">
                                 <div className="truncate text-xs text-stone-900 dark:text-stone-100">
                                   For {payment.contestant?.name ?? "Unknown contestant"}
@@ -941,18 +1180,13 @@ export default function AdminDashboard() {
                             className="border-b border-stone-100 transition-colors hover:bg-stone-100/70 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
                           >
                             <td className="px-4 py-3">
-                              <div
-                                className="flex h-10 w-10 items-center justify-center rounded-full border border-yellow-500/25 bg-gradient-to-br from-yellow-500/20 to-purple-500/20 bg-cover bg-center font-serif text-[11px] font-bold text-yellow-700 dark:text-yellow-400"
-                                style={
-                                  contestant.image
-                                    ? { backgroundImage: `url(${contestant.image})` }
-                                    : undefined
-                                }
-                              >
-                                {contestant.image
-                                  ? ""
-                                  : getContestantInitials(contestant.name)}
-                              </div>
+                              <ContestantMedia
+                                name={contestant.name}
+                                imageSrc={contestant.image}
+                                index={Number(contestant.contestantNumber) || 0}
+                                className="h-10 w-10 rounded-full border border-yellow-500/25"
+                                fallbackClassName="font-serif text-[11px] font-bold text-yellow-700 dark:text-yellow-400"
+                              />
                             </td>
                             <td className="px-4 py-3 text-stone-400 dark:text-stone-500">
                               #{contestant.contestantNumber}
@@ -1292,6 +1526,130 @@ export default function AdminDashboard() {
                   </div>
                 </>
               )}
+
+              {tab === "admins" && (
+                <>
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                      Admin Team
+                    </div>
+                    <button
+                      onClick={openCreateAdminForm}
+                      className="rounded-full border border-yellow-500/30 px-3 py-1.5 text-xs text-yellow-600 transition-colors hover:bg-yellow-500/10 dark:text-yellow-400"
+                    >
+                      + Add Admin
+                    </button>
+                  </div>
+                  <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                    {[
+                      {
+                        label: "Total Admins",
+                        value: adminUsers.length.toLocaleString(),
+                      },
+                      {
+                        label: "Super Admins",
+                        value: adminUsers
+                          .filter((adminUser) => adminUser.role === "super_admin")
+                          .length.toLocaleString(),
+                      },
+                      {
+                        label: "Managers",
+                        value: adminUsers
+                          .filter((adminUser) => adminUser.role !== "viewer")
+                          .length.toLocaleString(),
+                      },
+                      {
+                        label: "Signed In As",
+                        value: currentAdmin
+                          ? formatAdminRole(currentAdmin.role)
+                          : "Admin",
+                      },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="rounded-xl border border-stone-200 bg-stone-100 p-4 dark:border-white/[0.08] dark:bg-white/[0.04]"
+                      >
+                        <div className="mb-1 text-[11px] uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                          {stat.label}
+                        </div>
+                        <div className="font-serif text-xl font-bold text-stone-900 dark:text-stone-100">
+                          {stat.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-stone-200 dark:border-white/[0.07]">
+                          {["Name", "Email", "Role", "Source", "Actions"].map(
+                            (heading) => (
+                              <th
+                                key={heading}
+                                className="px-4 py-2.5 text-left text-[11px] font-normal uppercase tracking-wide text-stone-400 dark:text-stone-500"
+                              >
+                                {heading}
+                              </th>
+                            )
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adminUsers.map((adminUser) => (
+                          <tr
+                            key={adminUser.id}
+                            className="border-b border-stone-100 transition-colors hover:bg-stone-100/70 dark:border-white/[0.05] dark:hover:bg-white/[0.02]"
+                          >
+                            <td className="px-4 py-3 text-stone-900 dark:text-stone-100">
+                              <div className="font-medium">
+                                {adminUser.name || "Unnamed Admin"}
+                              </div>
+                              <div className="mt-0.5 text-xs text-stone-400 dark:text-stone-500">
+                                {currentAdmin?.id === adminUser.id
+                                  ? "Current account"
+                                  : "Managed account"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-stone-600 dark:text-stone-300">
+                              {adminUser.email}
+                            </td>
+                            <td className="px-4 py-3">{roleBadge(adminUser.role)}</td>
+                            <td className="px-4 py-3 text-xs text-stone-400 dark:text-stone-500">
+                              {adminUser.isEnvironment ? "Environment" : "Database"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  onClick={() => openEditAdminForm(adminUser)}
+                                  className="flex items-center gap-1 rounded border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] text-stone-600 transition-opacity hover:opacity-75 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-300"
+                                >
+                                  <Pencil size={11} /> Edit
+                                </button>
+                                {!adminUser.isEnvironment && (
+                                  <button
+                                    onClick={() => void handleDeleteAdmin(adminUser)}
+                                    disabled={
+                                      busyActionId ===
+                                      `delete-admin-${adminUser.id}`
+                                    }
+                                    className="flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-600 transition-opacity hover:opacity-75 disabled:opacity-60 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400"
+                                  >
+                                    <Trash2 size={11} />
+                                    {busyActionId ===
+                                    `delete-admin-${adminUser.id}`
+                                      ? "Removing..."
+                                      : "Remove"}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -1359,20 +1717,50 @@ export default function AdminDashboard() {
 
               <div>
                 <label className="mb-2 block text-[11px] uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">
-                  Image URL
+                  Contestant Image
                 </label>
-                <input
-                  type="url"
-                  value={contestantForm.image}
-                  onChange={(event) =>
-                    setContestantForm((current) => ({
-                      ...current,
-                      image: event.target.value,
-                    }))
-                  }
-                  placeholder="https://..."
-                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors focus:border-yellow-500/40 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-100"
-                />
+                <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.04]">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <ContestantMedia
+                      name={contestantForm.name || "Contestant"}
+                      imageSrc={contestantImagePreview || contestantForm.image}
+                      index={Number(contestantForm.contestantNumber) || 0}
+                      className="h-24 w-24 rounded-2xl border border-yellow-500/20"
+                      fallbackClassName="font-serif text-2xl text-yellow-500/70 dark:text-yellow-400/60"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) =>
+                          setContestantImageFile(
+                            event.target.files?.[0] ?? null
+                          )
+                        }
+                        className="block w-full rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-3 text-sm text-stone-700 file:mr-4 file:rounded-full file:border-0 file:bg-yellow-500/15 file:px-4 file:py-2 file:text-sm file:font-medium file:text-yellow-700 dark:border-white/[0.12] dark:bg-white/[0.03] dark:text-stone-300 dark:file:bg-yellow-500/10 dark:file:text-yellow-400"
+                      />
+                      <p className="mt-2 text-xs text-stone-400 dark:text-stone-500">
+                        Upload JPG, PNG, or WebP up to 5MB. The image will be
+                        stored in Cloudinary.
+                      </p>
+                      {(contestantImagePreview || contestantForm.image) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContestantImageFile(null);
+                            setContestantForm((current) => ({
+                              ...current,
+                              image: "",
+                            }));
+                          }}
+                          className="mt-3 text-xs text-red-500 transition-colors hover:text-red-400"
+                        >
+                          Remove current image
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -1508,6 +1896,132 @@ export default function AdminDashboard() {
                   className="rounded-full bg-yellow-500 px-5 py-2 text-sm font-medium text-stone-900 transition-opacity hover:opacity-90 disabled:opacity-60 dark:bg-yellow-400"
                 >
                   {stageSubmitting ? "Creating..." : "Create Stage"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isAdminFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/55 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-3xl border border-stone-200 bg-white p-6 shadow-[0_25px_80px_rgba(15,23,42,0.18)] dark:border-yellow-500/[0.16] dark:bg-[#130a22]">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 inline-block rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-yellow-600 dark:text-yellow-400">
+                  {adminForm.id ? "Edit Admin" : "New Admin"}
+                </div>
+                <h2 className="font-serif text-2xl font-bold text-stone-900 dark:text-stone-100">
+                  {adminForm.id
+                    ? "Update admin access"
+                    : "Create admin account"}
+                </h2>
+              </div>
+              <button
+                onClick={resetAdminForm}
+                className="rounded-full border border-stone-200 px-3 py-1.5 text-xs text-stone-500 transition-colors hover:text-stone-900 dark:border-white/[0.1] dark:text-stone-400 dark:hover:text-stone-100"
+              >
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={handleAdminSubmit} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-[11px] uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={adminForm.name}
+                    onChange={(event) =>
+                      setAdminForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors focus:border-yellow-500/40 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-100"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-[11px] uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">
+                    Role
+                  </label>
+                  <select
+                    value={adminForm.role}
+                    onChange={(event) =>
+                      setAdminForm((current) => ({
+                        ...current,
+                        role: event.target.value as AdminRole,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors focus:border-yellow-500/40 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-100"
+                  >
+                    {adminRoleOptions.map((roleOption) => (
+                      <option key={roleOption.value} value={roleOption.value}>
+                        {roleOption.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[11px] uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={adminForm.email}
+                  onChange={(event) =>
+                    setAdminForm((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors focus:border-yellow-500/40 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-100"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[11px] uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">
+                  {adminForm.id ? "New Password (Optional)" : "Password"}
+                </label>
+                <input
+                  type="password"
+                  value={adminForm.password}
+                  onChange={(event) =>
+                    setAdminForm((current) => ({
+                      ...current,
+                      password: event.target.value,
+                    }))
+                  }
+                  placeholder={
+                    adminForm.id
+                      ? "Leave blank to keep current password"
+                      : "At least 8 characters"
+                  }
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-900 outline-none transition-colors focus:border-yellow-500/40 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-stone-100"
+                  required={!adminForm.id}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={resetAdminForm}
+                  className="rounded-full border border-stone-200 px-4 py-2 text-sm text-stone-600 transition-colors hover:border-stone-300 dark:border-white/[0.1] dark:text-stone-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={adminSubmitting}
+                  className="rounded-full bg-yellow-500 px-5 py-2 text-sm font-medium text-stone-900 transition-opacity hover:opacity-90 disabled:opacity-60 dark:bg-yellow-400"
+                >
+                  {adminSubmitting ? "Saving..." : "Save Admin"}
                 </button>
               </div>
             </form>

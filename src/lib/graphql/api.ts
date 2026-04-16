@@ -1,5 +1,6 @@
 import { graphqlRequest } from "./client";
 import type {
+  GraphQLAdminUser,
   GraphQLContestant,
   GraphQLPayment,
   GraphQLStage,
@@ -52,6 +53,16 @@ const PAYMENT_FIELDS = `
   contestant {
     ${CONTESTANT_FIELDS}
   }
+`;
+
+const ADMIN_USER_FIELDS = `
+  id
+  name
+  email
+  role
+  isEnvironment
+  createdAt
+  updatedAt
 `;
 
 export type HomePageData = {
@@ -177,6 +188,8 @@ export async function createVotePayment(input: {
 }
 
 export type AdminDashboardData = {
+  currentAdmin: GraphQLAdminUser | null;
+  adminUsers: GraphQLAdminUser[];
   contestants: GraphQLContestant[];
   stages: GraphQLStage[];
   payments: GraphQLPayment[];
@@ -185,6 +198,12 @@ export type AdminDashboardData = {
 export async function fetchAdminDashboardData() {
   return graphqlRequest<AdminDashboardData>(`
     query AdminDashboardData {
+      currentAdmin {
+        ${ADMIN_USER_FIELDS}
+      }
+      adminUsers {
+        ${ADMIN_USER_FIELDS}
+      }
       contestants {
         ${CONTESTANT_FIELDS}
       }
@@ -372,4 +391,92 @@ export async function activateStage(id: string) {
   );
 
   return data.activateStage;
+}
+
+export async function createAdminUser(input: {
+  name?: string;
+  email: string;
+  password: string;
+  role: string;
+}) {
+  const data = await graphqlRequest<
+    {
+      createAdminUser: GraphQLAdminUser;
+    },
+    {
+      input: {
+        name?: string;
+        email: string;
+        password: string;
+        role: string;
+      };
+    }
+  >(
+    `
+      mutation CreateAdminUser($input: CreateAdminUserInput!) {
+        createAdminUser(input: $input) {
+          ${ADMIN_USER_FIELDS}
+        }
+      }
+    `,
+    { input }
+  );
+
+  return data.createAdminUser;
+}
+
+export async function updateAdminUser(
+  id: string,
+  input: {
+    name?: string;
+    email?: string;
+    password?: string;
+    role?: string;
+  }
+) {
+  const data = await graphqlRequest<
+    {
+      updateAdminUser: GraphQLAdminUser | null;
+    },
+    {
+      id: string;
+      input: {
+        name?: string;
+        email?: string;
+        password?: string;
+        role?: string;
+      };
+    }
+  >(
+    `
+      mutation UpdateAdminUser($id: ID!, $input: UpdateAdminUserInput!) {
+        updateAdminUser(id: $id, input: $input) {
+          ${ADMIN_USER_FIELDS}
+        }
+      }
+    `,
+    { id, input }
+  );
+
+  return data.updateAdminUser;
+}
+
+export async function deleteAdminUser(id: string) {
+  const data = await graphqlRequest<
+    {
+      deleteAdminUser: boolean;
+    },
+    {
+      id: string;
+    }
+  >(
+    `
+      mutation DeleteAdminUser($id: ID!) {
+        deleteAdminUser(id: $id)
+      }
+    `,
+    { id }
+  );
+
+  return data.deleteAdminUser;
 }

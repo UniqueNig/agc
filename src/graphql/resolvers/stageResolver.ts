@@ -2,7 +2,7 @@ import { GraphQLError } from "graphql";
 import stageModel, { type StageDocument } from "@/src/models/Stage";
 import contestantModel from "@/src/models/Contestant";
 import {
-  requireAdmin,
+  requireAdminPermission,
   serializeDate,
   toObjectId,
   type GraphQLContext,
@@ -43,7 +43,7 @@ const stageResolver = {
       { input }: CreateStageArgs,
       context: GraphQLContext
     ) => {
-      requireAdmin(context);
+      requireAdminPermission(context, "manage_stages");
       if (input.isActive) {
         await stageModel.updateMany({}, { isActive: false });
       }
@@ -59,7 +59,7 @@ const stageResolver = {
       { id, input }: UpdateStageArgs,
       context: GraphQLContext
     ) => {
-      requireAdmin(context);
+      requireAdminPermission(context, "manage_stages");
       const updateData: Partial<StageDocument> = {};
 
       if (typeof input.name === "string") updateData.name = input.name;
@@ -85,7 +85,7 @@ const stageResolver = {
       { id }: StageArgs,
       context: GraphQLContext
     ) => {
-      requireAdmin(context);
+      requireAdminPermission(context, "manage_stages");
       const stageId = toObjectId(id);
       const deleted = await stageModel.findByIdAndDelete(stageId);
 
@@ -102,7 +102,7 @@ const stageResolver = {
       { id }: StageArgs,
       context: GraphQLContext
     ) => {
-      requireAdmin(context);
+      requireAdminPermission(context, "manage_stages");
       const stageId = toObjectId(id);
       const existingStage = await stageModel.findById(stageId);
 

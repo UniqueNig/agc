@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Minus, Plus, X } from "lucide-react";
 import ThemeToggle from "@/src/components/ui/ThemeToggle";
+import ContestantMedia from "@/src/components/ui/ContestantMedia";
 import {
   createVotePayment,
   fetchContestantById,
@@ -12,7 +13,6 @@ import {
 } from "@/src/lib/graphql/api";
 import {
   formatCurrency,
-  getContestantInitials,
 } from "@/src/lib/contestants";
 
 const PRICE_PER_VOTE = 100;
@@ -119,9 +119,12 @@ export default function VotePage() {
           {contestant ? (
             <>
               <div className="flex items-center gap-4 p-6 pb-0">
-                <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl border border-yellow-500/20 bg-gradient-to-br from-purple-900/40 to-purple-950/70 font-serif text-2xl text-yellow-500/70 dark:text-yellow-400/60">
-                  {getContestantInitials(contestant.name)}
-                </div>
+                <ContestantMedia
+                  name={contestant.name}
+                  imageSrc={contestant.image}
+                  className="h-16 w-16 flex-shrink-0 rounded-2xl border border-yellow-500/20"
+                  fallbackClassName="font-serif text-2xl text-yellow-500/70 dark:text-yellow-400/60"
+                />
                 <div>
                   <div className="mb-0.5 text-[11px] uppercase tracking-[0.15em] text-yellow-600 dark:text-yellow-400">
                     Contestant #{contestant.contestantNumber}

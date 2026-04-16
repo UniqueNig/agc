@@ -4,14 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Footer from "@/src/components/layouts/Footer";
 import Navbar from "@/src/components/layouts/Navbar";
+import ContestantMedia from "@/src/components/ui/ContestantMedia";
 import {
   fetchLeaderboardPageData,
   type LeaderboardPageData,
 } from "@/src/lib/graphql/api";
 import {
   formatStageLabel,
-  getContestantGradient,
-  getContestantInitials,
   getVotePercentage,
 } from "@/src/lib/contestants";
 
@@ -138,7 +137,13 @@ export default function LeaderboardPage() {
                   </div>
                   {isFirst && <div className="mb-2 text-xl leading-none">&#9819;</div>}
                   <div className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full border font-serif text-base font-bold ${avatarBorder}`}>
-                    {getContestantInitials(contestant.name)}
+                    <ContestantMedia
+                      name={contestant.name}
+                      imageSrc={contestant.image}
+                      index={displayIndex}
+                      className="h-full w-full rounded-full"
+                      fallbackClassName="font-serif text-base font-bold"
+                    />
                   </div>
                   <div className="text-sm font-medium leading-tight text-stone-900 dark:text-stone-100">
                     {contestant.name}
@@ -214,11 +219,13 @@ export default function LeaderboardPage() {
                 <div className="w-6 text-center text-sm font-medium text-stone-400 dark:text-stone-500">
                   {index + 4}
                 </div>
-                <div
-                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${getContestantGradient(index)} font-serif text-xs font-bold text-yellow-500/70 dark:text-yellow-400/60`}
-                >
-                  {getContestantInitials(contestant.name)}
-                </div>
+                <ContestantMedia
+                  name={contestant.name}
+                  imageSrc={contestant.image}
+                  index={index}
+                  className="h-8 w-8 flex-shrink-0 rounded-full"
+                  fallbackClassName="font-serif text-xs font-bold text-yellow-500/70 dark:text-yellow-400/60"
+                />
                 <div className="flex flex-1 items-center gap-2 text-sm text-stone-900 dark:text-stone-100">
                   {contestant.status === "active" ? (
                     <Link href={`/vote/${contestant.id}`} className="transition-colors hover:text-yellow-600 dark:hover:text-yellow-400">

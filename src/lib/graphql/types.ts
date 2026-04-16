@@ -1,5 +1,8 @@
+import type { AdminRole } from "@/src/lib/admin-permissions";
+
 export type ContestantStatus = "active" | "pending" | "eliminated";
 export type PaymentStatus = "pending" | "success" | "failed";
+export type { AdminRole };
 
 export interface GraphQLStage {
   id: string;
@@ -38,6 +41,16 @@ export interface GraphQLPayment {
   contestant?: GraphQLContestant | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface GraphQLAdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: AdminRole;
+  isEnvironment: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface GraphQLVote {

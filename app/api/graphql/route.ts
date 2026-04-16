@@ -8,7 +8,7 @@ import { connectDB } from "@/src/lib/db";
 import type { GraphQLContext } from "@/src/graphql/resolvers/utils";
 import {
   ADMIN_AUTH_COOKIE,
-  verifyAdminToken,
+  getAdminSessionFromToken,
 } from "@/src/lib/admin-auth";
 
 
@@ -23,7 +23,7 @@ const handler = startServerAndCreateNextHandler<NextRequest, GraphQLContext>(ser
 
     return {
       req,
-      adminSession: token ? verifyAdminToken(token) : null,
+      adminSession: token ? await getAdminSessionFromToken(token) : null,
     };
   },
 });

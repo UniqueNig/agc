@@ -6,6 +6,12 @@ import type {
 import type { PaymentStatus } from "@/src/models/Payment";
 import type { VoteStatus } from "@/src/models/Vote";
 import type { getAdminSession } from "@/src/lib/admin-auth";
+import {
+  hasAdminPermission,
+  isAdminRole,
+  type AdminPermission,
+  type AdminRole,
+} from "@/src/lib/admin-permissions";
 
 const contestantStatuses = new Set<ContestantStatus>([
   "active",
@@ -60,6 +66,17 @@ export const normalizeVoteStatus = (status?: string | null) => {
   return normalized;
 };
 
+export const normalizeAdminRole = (role?: string | null) => {
+  if (!role) return undefined;
+
+  const normalized = role.trim().toLowerCase() as AdminRole;
+  if (!isAdminRole(normalized)) {
+    throw new GraphQLError("Invalid admin role.");
+  }
+
+  return normalized;
+};
+
 export const serializeDate = (value: Date | string | null | undefined) => {
   if (!value) return null;
   return new Date(value).toISOString();
@@ -75,4 +92,21 @@ export const requireAdmin = (context: GraphQLContext) => {
   }
 
   return context.adminSession;
+};
+
+export const requireAdminPermission = (
+  context: GraphQLContext,
+  permission: AdminPermission
+) => {
+  const session = requireAdmin(context);
+
+  if (!hasAdminPermission(session.role, permission)) {
+    throw new GraphQLError("Forbidden.", {
+      extensions: {
+        code: "FORBIDDEN",
+      },
+    });
+  }
+
+  return session;
 };

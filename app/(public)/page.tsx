@@ -4,13 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Footer from "@/src/components/layouts/Footer";
 import Navbar from "@/src/components/layouts/Navbar";
+import ContestantMedia from "@/src/components/ui/ContestantMedia";
 import {
   fetchHomePageData,
   type HomePageData,
 } from "@/src/lib/graphql/api";
 import {
-  getContestantGradient,
-  getContestantInitials,
   getVotePercentage,
 } from "@/src/lib/contestants";
 
@@ -228,11 +227,13 @@ export default function HomePage() {
                 key={contestant.id}
                 className="min-w-[200px] flex-shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 transition-all duration-200 hover:-translate-y-1 hover:border-yellow-500/50 dark:border-white/[0.08] dark:bg-white/[0.04]"
               >
-                <div
-                  className={`flex aspect-[4/5] w-full items-center justify-center bg-gradient-to-br ${getContestantGradient(index)} font-serif text-3xl text-yellow-500/60 dark:text-yellow-400/50`}
-                >
-                  {getContestantInitials(contestant.name)}
-                </div>
+                <ContestantMedia
+                  name={contestant.name}
+                  imageSrc={contestant.image}
+                  index={index}
+                  className="aspect-[4/5] w-full"
+                  fallbackClassName="font-serif text-3xl text-yellow-500/60 dark:text-yellow-400/50"
+                />
                 <div className="p-4">
                   <div className="text-[10px] uppercase tracking-[0.15em] text-yellow-600 dark:text-yellow-400">
                     Contestant #{contestant.contestantNumber}
@@ -308,7 +309,13 @@ export default function HomePage() {
                       <div
                         className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full border font-serif text-base font-bold ${avatarColor}`}
                       >
-                        {getContestantInitials(contestant.name)}
+                        <ContestantMedia
+                          name={contestant.name}
+                          imageSrc={contestant.image}
+                          index={displayIndex}
+                          className="h-full w-full rounded-full"
+                          fallbackClassName="font-serif text-base font-bold"
+                        />
                       </div>
                       <div className="text-sm font-medium text-stone-900 dark:text-stone-100">
                         {contestant.name}

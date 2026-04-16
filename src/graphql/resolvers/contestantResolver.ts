@@ -7,7 +7,7 @@ import paymentModel from "@/src/models/Payment";
 import voteModel from "@/src/models/Vote";
 import {
   normalizeContestantStatus,
-  requireAdmin,
+  requireAdminPermission,
   serializeDate,
   toObjectId,
   type GraphQLContext,
@@ -90,7 +90,7 @@ const contestantResolver = {
       { input }: CreateContestantArgs,
       context: GraphQLContext
     ) => {
-      requireAdmin(context);
+      requireAdminPermission(context, "manage_contestants");
       const normalizedStatus = normalizeContestantStatus(input.status) ?? "pending";
       const existingContestant = await contestantModel.findOne({
         contestantNumber: input.contestantNumber,
@@ -124,7 +124,7 @@ const contestantResolver = {
       { id, input }: UpdateContestantArgs,
       context: GraphQLContext
     ) => {
-      requireAdmin(context);
+      requireAdminPermission(context, "manage_contestants");
       const updateData: Partial<ContestantDocument> = {};
 
       if (typeof input.name === "string") updateData.name = input.name;
@@ -172,7 +172,7 @@ const contestantResolver = {
       { id }: ContestantArgs,
       context: GraphQLContext
     ) => {
-      requireAdmin(context);
+      requireAdminPermission(context, "manage_contestants");
       const contestantId = toObjectId(id);
       const deleted = await contestantModel.findByIdAndDelete(contestantId);
 

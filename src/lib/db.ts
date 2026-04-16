@@ -49,10 +49,12 @@ const buildConnectionError = (error: unknown, uri: string) => {
 
   if (
     uri.startsWith("mongodb+srv://") &&
-    (errorCode === "ECONNREFUSED" || syscall === "querySrv")
+    (errorCode === "ECONNREFUSED" ||
+      errorCode === "ENOTFOUND" ||
+      syscall === "querySrv")
   ) {
     return new Error(
-      "MongoDB DNS SRV lookup failed. Your network could not resolve the Atlas SRV host. Use a standard mongodb:// connection string in MONGO_DB_URI or provide MONGO_DB_URI_FALLBACK for a direct connection."
+      "MongoDB Atlas host lookup failed. Your network could not resolve the Atlas cluster host. Use a standard mongodb:// connection string in MONGO_DB_URI or provide MONGO_DB_URI_FALLBACK for a direct connection."
     );
   }
 

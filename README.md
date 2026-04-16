@@ -1,5 +1,21 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Setup
+
+Create a `.env.local` from `.env.example` and configure:
+
+- `MONGO_DB_URI` or `MONGO_DB_URI_FALLBACK`
+- `PAYSTACK_SECRET_KEY`
+- `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`
+- `NEXT_PUBLIC_SITE_URL`
+- `JWT_SECRET`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- optional `CLOUDINARY_UPLOAD_FOLDER`
+
+Cloudinary is used for contestant image uploads from the admin dashboard.
+
 ## Getting Started
 
 First, run the development server:
